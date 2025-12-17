@@ -888,7 +888,98 @@
 
 
     // --- Daily reset helper ---
-    var todayStr = new Date().toISOString().slice(0, 10);
+    
+    // --- Supabase (system) crediting for AI Power ---
+    var SUPABASE_URL = "https://oyowsjjmaesspqiknvhp.supabase.co";
+    var SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im95b3dzamptYWVzc3BxaWtudmhwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU4MTE4NzcsImV4cCI6MjA4MTM4Nzg3N30.aBo32xNG_dh1QD7NBI4N6jhYFLY42Xyxer2DNXxJi-w";
+    var SB_USER_ID_KEY = "sb_user_id_v1";
+
+    function apiHeaders() {
+      return {
+        "apikey": SUPABASE_ANON,
+        "Authorization": "Bearer " + SUPABASE_ANON,
+        "Content-Type": "application/json",
+        "Accept": "application/json"
+      };
+    }
+
+    function getSupabaseUserId() {
+      try { return localStorage.getItem(SB_USER_ID_KEY) || ""; } catch (e) { return ""; }
+    }
+
+    async function fetchWalletRow(userId) {
+      var url = SUPABASE_URL + "/rest/v1/wallet_balances?select=usdt_balance,updated_at&user_id=eq." +
+        encodeURIComponent(userId) + "&limit=1";
+      var res = await fetch(url, { method: "GET", headers: apiHeaders() });
+      if (!res.ok) return null;
+      var rows = await res.json();
+      return (Array.isArray(rows) && rows[0]) ? rows[0] : null;
+    }
+
+    async function updateWalletBalance(userId, newBalance) {
+      var url = SUPABASE_URL + "/rest/v1/wallet_balances?user_id=eq." + encodeURIComponent(userId);
+      var res = await fetch(url, {
+        method: "PATCH",
+        headers: Object.assign({}, apiHeaders(), { "Prefer": "return=minimal" }),
+        body: JSON.stringify({ usdt_balance: newBalance, updated_at: new Date().toISOString() })
+      });
+      return res.ok;
+    }
+
+    async function insertWalletBalance(userId, balance) {
+      var url = SUPABASE_URL + "/rest/v1/wallet_balances";
+      var res = await fetch(url, {
+        method: "POST",
+        headers: Object.assign({}, apiHeaders(), { "Prefer": "return=minimal" }),
+        body: JSON.stringify({ user_id: userId, usdt_balance: balance })
+      });
+      return res.ok;
+    }
+
+    async function insertIpowerAction(userId, snapshot, earning) {
+      var url = SUPABASE_URL + "/rest/v1/ipower_actions";
+      var res = await fetch(url, {
+        method: "POST",
+        headers: Object.assign({}, apiHeaders(), { "Prefer": "return=minimal" }),
+        body: JSON.stringify({
+          user_id: userId,
+          action_type: "tap",
+          balance_snapshot: snapshot,
+          earning_amount: earning
+        })
+      });
+      return res.ok;
+    }
+
+    async function applyIpowerProfit(profit) {
+      var p = Number(profit);
+      if (!isFinite(p) || p <= 0) throw new Error("Invalid profit");
+      var userId = getSupabaseUserId();
+      if (!userId) throw new Error("Missing user session");
+
+      var row = await fetchWalletRow(userId);
+      var snapshot = row && row.usdt_balance != null ? Number(row.usdt_balance) : 0;
+      if (!isFinite(snapshot)) snapshot = 0;
+
+      var newBal = snapshot + p;
+
+      // 1) Log action in ipower_actions (system table)
+      await insertIpowerAction(userId, snapshot, p);
+
+      // 2) Credit wallet_balances
+      var ok = await updateWalletBalance(userId, newBal);
+      if (!ok) {
+        // If row doesn't exist yet, try insert then update
+        await insertWalletBalance(userId, newBal);
+        await updateWalletBalance(userId, newBal);
+      }
+
+      // 3) Sync local demoBalance so membership UI stays consistent
+      try { localStorage.setItem("demoBalance", String(newBal.toFixed(2))); } catch (e) {}
+      return newBal;
+    }
+
+var todayStr = new Date().toISOString().slice(0, 10);
 
     var gpuCardEls = document.querySelectorAll(".gpu-card");
     if (!gpuCardEls.length) return;
@@ -1146,10 +1237,14 @@
           var profit = cfg.baseAmount * (rate / 100) / Math.max(cfg.maxRuns, 1);
           st.todayProfit += profit;
 
-          if (window.DemoWallet && typeof window.DemoWallet.addIncome === 'function') {
-            // Each successful run adds 1 USDT demo income to the user's wallet
-            window.DemoWallet.addIncome(1);
-          }
+          // System (Supabase): record action + credit wallet balance
+          applyIpowerProfit(profit).catch(function(err) {
+            // Fallback: keep offline demo moving if user is not logged in / API blocked
+            try { console.warn("applyIpowerProfit failed:", err && err.message ? err.message : err); } catch (e) {}
+            if (window.DemoWallet && typeof window.DemoWallet.addIncome === 'function') {
+              window.DemoWallet.addIncome(1);
+            }
+          });
 
           state.levels[i] = st;
           saveState();
