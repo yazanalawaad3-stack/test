@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<!--
+  Utility page to clear localStorage for the stop‑main demo. Opening this file
+  will immediately erase all data stored under file:// origin, which
+  effectively resets DemoWallet users and state. After the page loads you
+  should see a short message confirming that storage has been wiped. This
+  file is intended for manual testing only and is not referenced by the
+  application.
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <title>Reset Demo Storage</title>
+  <style>
+    body {
+      background: #01050a;
+      color: #ffffff;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      font-family: sans-serif;
+    }
+    .message {
+      padding: 24px;
+      background: #07203a;
+      border-radius: 8px;
+      max-width: 400px;
+      text-align: center;
+      box-shadow: 0 0 8px rgba(0,0,0,0.6);
+    }
+  </style>
+</head>
+<body>
+  <div class="message" id="msg">Resetting storage…</div>
+  <script>
+    try {
+      localStorage.clear();
+      sessionStorage.clear();
+      document.getElementById('msg').innerText = 'Local storage has been cleared. You can close this tab and start over.';
+    } catch (e) {
+      document.getElementById('msg').innerText = 'Failed to clear storage: ' + (e && e.message);
+    }
+  </script>
+</body>
+</html>
