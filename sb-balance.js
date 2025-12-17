@@ -178,11 +178,15 @@
 
     // Gentle polling (keeps UI fresh after deposit/withdraw)
     setInterval(fetchBalance, 6000);
-
-    // Allow other pages (AI Power) to force a refresh
-    try { window.addEventListener('wallet:refresh', fetchBalance); } catch (e) {}
-    try { window.SBBalance = window.SBBalance || {}; window.SBBalance.refresh = fetchBalance; } catch (e) {}
   }
+
+  // Expose a small API so other pages (e.g., AI-Power) can force-refresh instantly
+  try {
+    window.SBBalance = window.SBBalance || {};
+    window.SBBalance.refresh = fetchBalance;
+    window.addEventListener("sb:balance_refresh", function(){ fetchBalance(); });
+  } catch (e) {}
+
 
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", init);
