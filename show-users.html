@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <title>Show Users</title>
+  <style>
+    body { background:#000814; color:#fff; font-family: sans-serif; padding:20px; }
+    pre { background:#001d3d; padding:15px; border-radius:6px; overflow-x:auto; }
+    h1 { font-size:20px; margin-bottom:10px; }
+  </style>
+</head>
+<body>
+  <h1>demoUsers_v1</h1>
+  <pre id="out"></pre>
+  <script>
+    try {
+      var raw = localStorage.getItem('demoUsers_v1');
+      var outEl = document.getElementById('out');
+      if (raw) {
+        outEl.textContent = raw;
+      } else {
+        outEl.textContent = '(no data)';
+      }
+    } catch (e) {
+      document.getElementById('out').textContent = 'error: ' + e;
+    }
+  </script>
+</body>
+</html>

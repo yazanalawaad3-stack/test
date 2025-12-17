@@ -1,0 +1,71 @@
+
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8" />
+<title>صفحة اختبار شاملة — Member / Assets / Team</title>
+<script src="wallet.js"></script>
+<style>
+ body { background:#0b0f16; color:#fff; font-family:sans-serif; padding:20px; }
+ a { color:#00e4c0; font-size:18px; display:block; margin:6px 0; }
+ .box { background:#111a24; padding:15px; border-radius:10px; margin-top:20px; }
+ pre { background:#0d2a36; padding:12px; border-radius:8px; overflow:auto; }
+ button { padding:10px 15px; margin:5px; border-radius:8px; cursor:pointer; background:#008cff; color:#fff; border:none; }
+</style>
+</head>
+<body>
+
+<h1>🔧 صفحة اختبار شاملة</h1>
+<p>هدف هذه الصفحة هو التأكد أن ربط <strong>member</strong> و <strong>my-assets</strong> و <strong>my-team</strong> يعمل بشكل صحيح.</p>
+
+<a href="member.html">🔹 فتح صفحة العضوية (Member)</a>
+<a href="my-assets.html">🔹 فتح صفحة الأصول (My Assets)</a>
+<a href="my-team.html">🔹 فتح صفحة الفريق (My Team)</a>
+
+<div class="box">
+  <h2>Snapshot — عرض كل البيانات الحالية</h2>
+  <pre id="snapshot">جارِ التحميل...</pre>
+</div>
+
+<div class="box">
+  <h3>اختبارات سريعة</h3>
+  <button onclick="add()">إضافة 1 USDT</button>
+  <button onclick="sub()">سحب 1 USDT</button>
+  <button onclick="resetAll()">إعادة تعيين كل شيء</button>
+</div>
+
+<script>
+function refresh() {
+  const out = {};
+
+  try { out.wallet = DemoWallet.getWallet(); } catch(e){ out.wallet = "خطأ: " + e; }
+  try { out.vip = DemoWallet.getVipInfo(); } catch(e){ out.vip = "خطأ: " + e; }
+  try { out.team = DemoWallet.getTeamSummary(); } catch(e){ out.team = "خطأ: " + e; }
+
+  out.demoBalance = localStorage.getItem("demoBalance");
+
+  document.getElementById("snapshot").textContent = JSON.stringify(out, null, 2);
+}
+
+function add() {
+  try { DemoWallet.addIncome(1); } catch(e){}
+  refresh();
+}
+
+function sub() {
+  try { DemoWallet.withdraw(1); } catch(e){}
+  refresh();
+}
+
+function resetAll() {
+  localStorage.removeItem("demoWallet_v1");
+  localStorage.removeItem("demoBalance");
+  alert("تمت إعادة التعيين — أعد تحميل الصفحة");
+  location.reload();
+}
+
+refresh();
+</script>
+
+</body>
+</html>

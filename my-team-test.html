@@ -1,0 +1,319 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>My Team Test</title>
+  <style>
+    :root{--bg:#06070b;--card:#0c111a;--muted:#98a2b3;--text:#e6e7ea;--line:#1b2433;--accent:#1fd0ff;}
+    *{box-sizing:border-box;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
+    body{margin:0;background:var(--bg);color:var(--text)}
+    header{display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid var(--line);position:sticky;top:0;background:rgba(6,7,11,.9);backdrop-filter: blur(8px)}
+    header a{color:var(--text);text-decoration:none;font-weight:600;opacity:.9}
+    header .title{margin:0 auto;font-weight:700}
+    .wrap{max-width:860px;margin:0 auto;padding:14px 14px 28px}
+    .card{background:linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02));border:1px solid var(--line);border-radius:14px;padding:14px;margin:12px 0}
+    .muted{color:var(--muted);font-size:13px;line-height:1.35}
+    .row{display:flex;gap:10px;flex-wrap:wrap}
+    label{display:block;font-size:12px;color:var(--muted);margin:8px 0 6px}
+    input{width:100%;padding:12px 12px;border-radius:12px;border:1px solid var(--line);background:#0a0f17;color:var(--text);outline:none}
+    input:focus{border-color:rgba(31,208,255,.5);box-shadow:0 0 0 3px rgba(31,208,255,.08)}
+    .btn{padding:12px 14px;border-radius:12px;border:1px solid rgba(31,208,255,.35);background:rgba(31,208,255,.08);color:var(--text);cursor:pointer;font-weight:700}
+    .btn:disabled{opacity:.5;cursor:not-allowed}
+    .kpi{flex:1;min-width:240px}
+    .kpi .big{font-size:28px;font-weight:800;margin:4px 0 0}
+    .kpi .cap{color:var(--muted);font-size:12px}
+    .hr{height:1px;background:var(--line);margin:10px 0}
+    table{width:100%;border-collapse:collapse;font-size:13px}
+    th,td{padding:10px 8px;border-bottom:1px solid var(--line);text-align:left}
+    th{color:#cfd6e4;font-weight:700}
+    .pill{display:inline-block;padding:3px 8px;border-radius:999px;border:1px solid var(--line);color:var(--muted);font-size:12px}
+    .err{color:#ff7b7b;white-space:pre-wrap;font-size:12px}
+    .ok{color:#72f7b7;white-space:pre-wrap;font-size:12px}
+    .debug{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-size:12px;white-space:pre-wrap}
+  </style>
+</head>
+<body>
+<header>
+  <a href="javascript:history.back()">←</a>
+  <div class="title">My Team Test</div>
+</header>
+
+<div class="wrap">
+  <div class="card">
+    <div style="color:var(--accent);font-weight:800;margin-bottom:8px">Backend test (read-only)</div>
+    <div class="muted">
+      This page does not insert users. It only tests the team tree queries based on your <b>public.users</b> table (referrer_id).
+      <br/>Enter your Supabase URL + anon key + a referrer user_id (uuid), then press Load.
+    </div>
+
+    <div class="row" style="align-items:flex-end;margin-top:10px">
+      <div style="flex:1;min-width:260px">
+        <label>SUPABASE_URL</label>
+        <input id="sbUrl" placeholder="https://xxxx.supabase.co" />
+      </div>
+      <div style="flex:1;min-width:260px">
+        <label>SUPABASE_ANON_KEY</label>
+        <input id="sbAnon" placeholder="your anon key" />
+      </div>
+      <div style="flex:1;min-width:260px">
+        <label>referrer_user_id (uuid)</label>
+        <input id="refId" placeholder="e.g. 550a00fb-...." />
+      </div>
+      <div>
+        <button class="btn" id="loadBtn">Load</button>
+      </div>
+    </div>
+
+    <div class="hr"></div>
+    <div id="status" class="muted"></div>
+    <div id="debug" class="debug muted" style="margin-top:6px"></div>
+    <div id="error" class="err" style="margin-top:6px"></div>
+  </div>
+
+  <div class="row">
+    <div class="card kpi">
+      <div class="cap">Team Size</div>
+      <div class="big" id="teamSize">0/0</div>
+    </div>
+    <div class="card kpi">
+      <div class="cap">Today's Earnings/Total revenue</div>
+      <div class="big" id="todayRevenue">0/0</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div style="color:var(--accent);font-weight:800;margin-bottom:8px">Effective user data</div>
+
+    <div class="card" style="margin:10px 0;padding:12px">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div style="font-weight:800">1Generation</div>
+        <div class="pill"><span id="gen1Count">0</span>/<span id="gen1Eff">0</span></div>
+      </div>
+      <div class="muted" style="display:flex;justify-content:space-between;margin-top:6px">
+        <div>Effective member</div><div>20%</div><div>Income</div>
+      </div>
+    </div>
+
+    <div class="card" style="margin:10px 0;padding:12px">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div style="font-weight:800">2Generation</div>
+        <div class="pill"><span id="gen2Count">0</span>/<span id="gen2Eff">0</span></div>
+      </div>
+      <div class="muted" style="display:flex;justify-content:space-between;margin-top:6px">
+        <div>Effective member</div><div>5%</div><div>Income</div>
+      </div>
+    </div>
+
+    <div class="card" style="margin:10px 0;padding:12px">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div style="font-weight:800">3Generation</div>
+        <div class="pill"><span id="gen3Count">0</span>/<span id="gen3Eff">0</span></div>
+      </div>
+      <div class="muted" style="display:flex;justify-content:space-between;margin-top:6px">
+        <div>Effective member</div><div>3%</div><div>Income</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div style="color:var(--accent);font-weight:800;margin-bottom:8px">Team List (Gen1 only)</div>
+    <table>
+      <thead>
+        <tr>
+          <th>Account</th>
+          <th>ID</th>
+          <th>Level</th>
+          <th>Registration time</th>
+        </tr>
+      </thead>
+      <tbody id="tbody">
+        <tr><td class="muted" colspan="4">—</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+(function(){
+  const $ = (id)=>document.getElementById(id);
+
+  const state = {
+    gen1: [], gen2: [], gen3: [],
+    gen1Eff: 0, gen2Eff: 0, gen3Eff: 0
+  };
+
+  function setBusy(b){
+    $('loadBtn').disabled = b;
+    $('status').textContent = b ? 'Loading…' : '';
+  }
+
+  function showError(msg){
+    $('error').textContent = msg || '';
+  }
+
+  function dbg(msg){
+    $('debug').textContent = msg || '';
+  }
+
+  function isUuid(v){
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test((v||'').trim());
+  }
+
+  function normalizeUrl(u){
+    u = (u||'').trim();
+    if(!u) return '';
+    u = u.replace(/\/+$/,''); // remove trailing slash
+    return u;
+  }
+
+  async function pgFetch(baseUrl, anon, pathAndQuery){
+    const url = baseUrl + '/rest/v1/' + pathAndQuery;
+    const res = await fetch(url, {
+      headers: {
+        'apikey': anon,
+        'Authorization': 'Bearer ' + anon,
+        'Accept': 'application/json'
+      }
+    });
+    const text = await res.text();
+    let data = null;
+    try { data = text ? JSON.parse(text) : null; } catch(e){ /* ignore */ }
+    if(!res.ok){
+      const hint = (data && (data.message || data.error || data.hint)) ? JSON.stringify(data) : text;
+      throw new Error('HTTP ' + res.status + ' ' + res.statusText + '\n' + hint);
+    }
+    return data || [];
+  }
+
+  function chunkIn(list){
+    // PostgREST in.(a,b,c)
+    return 'in.(' + list.join(',') + ')';
+  }
+
+  function maskPhoneDigits(phone_digits){
+    const s = String(phone_digits || '');
+    if(s.length <= 3) return s;
+    const head = s.slice(0,3);
+    const tail = s.slice(-3);
+    return head + '***' + tail;
+  }
+
+  function render(){
+    const teamTotal = state.gen1.length + state.gen2.length + state.gen3.length;
+    $('teamSize').textContent = '0/' + teamTotal;
+
+    $('gen1Count').textContent = state.gen1.length;
+    $('gen2Count').textContent = state.gen2.length;
+    $('gen3Count').textContent = state.gen3.length;
+
+    $('gen1Eff').textContent = state.gen1Eff;
+    $('gen2Eff').textContent = state.gen2Eff;
+    $('gen3Eff').textContent = state.gen3Eff;
+
+    // table (Gen1 only)
+    const tb = $('tbody');
+    tb.innerHTML = '';
+    if(!state.gen1.length){
+      const tr = document.createElement('tr');
+      tr.innerHTML = '<td class="muted" colspan="4">—</td>';
+      tb.appendChild(tr);
+      return;
+    }
+    state.gen1
+      .sort((a,b)=> new Date(b.created_at) - new Date(a.created_at))
+      .forEach(u=>{
+        const tr = document.createElement('tr');
+        const account = (u.area_code ? ('+'+u.area_code) : '+') + maskPhoneDigits(u.phone_digits);
+        const level = 'LV.0';
+        const dt = new Date(u.created_at).toISOString().replace('T',' ').slice(0,19);
+        tr.innerHTML = '<td>'+account+'</td><td>'+u.uid+'</td><td>'+level+'</td><td>'+dt+'</td>';
+        tb.appendChild(tr);
+      });
+  }
+
+  async function loadTree(){
+    showError('');
+    dbg('');
+    setBusy(true);
+
+    const baseUrl = normalizeUrl($('sbUrl').value);
+    const anon = ($('sbAnon').value || '').trim();
+    const rootId = ($('refId').value || '').trim();
+
+    try{
+      if(!baseUrl || !/^https:\/\/.+\.supabase\.co$/i.test(baseUrl)){
+        throw new Error('SUPABASE_URL is invalid. Example: https://xxxx.supabase.co');
+      }
+      if(!anon || anon.length < 50){
+        throw new Error('SUPABASE_ANON_KEY looks invalid (too short).');
+      }
+      if(!isUuid(rootId)){
+        throw new Error('referrer_user_id must be a valid UUID.');
+      }
+
+      // GEN1
+      const gen1 = await pgFetch(baseUrl, anon,
+        'users?select=id,uid,phone_digits,area_code,created_at,is_effective&referrer_id=eq.'+encodeURIComponent(rootId)+'&limit=1000'
+      );
+
+      // GEN2
+      let gen2 = [];
+      if(gen1.length){
+        const gen1Ids = gen1.map(x=>x.id);
+        gen2 = await pgFetch(baseUrl, anon,
+          'users?select=id,uid,phone_digits,area_code,created_at,is_effective&referrer_id='+encodeURIComponent(chunkIn(gen1Ids))+'&limit=1000'
+        );
+      }
+
+      // GEN3
+      let gen3 = [];
+      if(gen2.length){
+        const gen2Ids = gen2.map(x=>x.id);
+        gen3 = await pgFetch(baseUrl, anon,
+          'users?select=id,uid,phone_digits,area_code,created_at,is_effective&referrer_id='+encodeURIComponent(chunkIn(gen2Ids))+'&limit=1000'
+        );
+      }
+
+      state.gen1 = gen1;
+      state.gen2 = gen2;
+      state.gen3 = gen3;
+
+      state.gen1Eff = gen1.filter(x=>x.is_effective).length;
+      state.gen2Eff = gen2.filter(x=>x.is_effective).length;
+      state.gen3Eff = gen3.filter(x=>x.is_effective).length;
+
+      const debugLines = [];
+      debugLines.push('referrer_id(root)=' + rootId);
+      debugLines.push('gen1=' + gen1.length + ' ids: ' + gen1.map(x=>x.id).slice(0,5).join(', ') + (gen1.length>5?' …':''));
+      debugLines.push('gen2=' + gen2.length + ' ids: ' + gen2.map(x=>x.id).slice(0,5).join(', ') + (gen2.length>5?' …':''));
+      debugLines.push('gen3=' + gen3.length + (gen3.length===0 && gen2.length ? '  | NOTE: no rows in users where referrer_id equals any Gen2 member id' : ''));
+      dbg(debugLines.join('\n'));
+
+      render();
+      $('status').textContent = 'Done.';
+      $('status').className = 'ok';
+    } catch(e){
+      $('status').textContent = '';
+      $('status').className = 'muted';
+      showError(String(e && e.message ? e.message : e));
+      // keep prior render
+    } finally{
+      setBusy(false);
+      setTimeout(()=>{ if($('status').textContent==='Done.') $('status').textContent=''; }, 1500);
+    }
+  }
+
+  $('loadBtn').addEventListener('click', loadTree);
+
+  // Try auto-fill from localStorage keys if user previously set them (optional; does not block)
+  try{
+    const u = localStorage.getItem('exaraj_supabase_url');
+    const a = localStorage.getItem('exaraj_supabase_anon');
+    if(u) $('sbUrl').value = u;
+    if(a) $('sbAnon').value = a;
+  }catch(_){}
+})();
+</script>
+</body>
+</html>

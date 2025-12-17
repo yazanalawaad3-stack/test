@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>VIP Team Test (Supabase)</title>
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial; margin:16px; background:#0b0f14; color:#e8eef6}
+    .card{background:#111826; border:1px solid #233044; border-radius:14px; padding:14px; margin:10px 0}
+    input,button{width:100%; padding:10px 12px; border-radius:10px; border:1px solid #2b3a52; background:#0b1220; color:#e8eef6}
+    button{cursor:pointer; font-weight:700}
+    button:disabled{opacity:.6; cursor:not-allowed}
+    .row{display:grid; grid-template-columns: 1fr; gap:10px}
+    .grid2{display:grid; grid-template-columns: 1fr 1fr; gap:10px}
+    .muted{color:#a9b6c7; font-size:13px}
+    .err{color:#ff7676; white-space:pre-wrap}
+    .ok{color:#7dffa2; white-space:pre-wrap}
+    table{width:100%; border-collapse:collapse; font-size:13px}
+    th,td{border-bottom:1px solid #233044; padding:8px; text-align:right; vertical-align:top}
+    th{position:sticky; top:0; background:#111826}
+    .pill{display:inline-block; padding:2px 8px; border:1px solid #233044; border-radius:999px; font-size:12px; margin-inline-start:6px}
+  </style>
+</head>
+<body>
+  <h2 style="margin:0 0 8px">VIP Team Test (6 Generations)</h2>
+  <div class="muted">هذه الصفحة للـ <b>اختبار فقط</b>. تحسب فريقك حتى 6 أجيال من جدول <code>public.users</code> عبر <code>referrer_id</code> وتعرض فعال/إجمالي (مثل 3/10) بناءً على <code>is_effective</code> أو <code>total_deposit&gt;0</code>.</div>
+
+  <div class="card">
+    <div class="row">
+      <label class="muted">SUPABASE_URL</label>
+      <input id="url" placeholder="https://xxxx.supabase.co"/>
+      <label class="muted">SUPABASE_ANON_KEY</label>
+      <input id="anon" placeholder="anon public key"/>
+      <label class="muted">Root user_id (UUID)</label>
+      <input id="root" placeholder="مثال: 298c22c4-...."/>
+      <button id="btn">Load</button>
+      <div id="status" class="muted"></div>
+      <div id="error" class="err"></div>
+    </div>
+  </div>
+
+  <div class="card" id="summaryCard" style="display:none">
+    <div id="summary"></div>
+  </div>
+
+  <div class="card" id="tableCard" style="display:none">
+    <div style="overflow:auto; max-height:60vh">
+      <table id="tbl">
+        <thead>
+          <tr>
+            <th>Gen</th>
+            <th>Account (uid)</th>
+            <th>ID</th>
+            <th>VIP</th>
+            <th>Effective</th>
+            <th>Total deposit</th>
+            <th>Registration time</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <div class="muted" style="margin-top:8px">ملاحظة: الجدول يظهر جميع الأجيال (1-6) للاختبار. إذا بدك صفحة الموقع الأساسية تظهر Gen1 فقط هذا موضوع منفصل.</div>
+  </div>
+
+<script>
+const $ = (id)=>document.getElementById(id);
+
+function supabaseCreateClient(url, anon){
+  const headers = { "apikey": anon, "Authorization": "Bearer " + anon };
+  async function get(path){
+    const res = await fetch(url + "/rest/v1/" + path, { headers });
+    const txt = await res.text();
+    if(!res.ok){
+      throw new Error("HTTP " + res.status + ": " + txt);
+    }
+    return txt ? JSON.parse(txt) : null;
+  }
+  return { get };
+}
+
+function chunk(arr, n){
+  const out=[]; for(let i=0;i<arr.length;i+=n) out.push(arr.slice(i,i+n)); return out;
+}
+
+function fmtDate(s){
+  try{ return new Date(s).toLocaleString("en-GB", {hour12:false}); }catch(e){ return s; }
+}
+
+function isEffectiveRow(r){
+  // "فعّال" = is_effective true OR total_deposit > 0 (حسب طلبك V0/V1)
+  return !!r.is_effective || (Number(r.total_deposit||0) > 0);
+}
+
+function vipLevel(r){
+  return (Number(r.total_deposit||0) > 0) ? "V1" : "V0";
+}
+
+async function fetchUsersByReferrers(client, refIds){
+  if(refIds.length === 0) return [];
+  const cols = "id,uid,created_at,referrer_id,total_deposit,is_effective";
+  // PostgREST in() length limits -> chunk
+  const batches = chunk(refIds, 80);
+  const rows = [];
+  for(const b of batches){
+    const inList = b.join(",");
+    const q = `users?select=${encodeURIComponent(cols)}&referrer_id=in.(${inList})&order=created_at.desc&limit=1000`;
+    const part = await client.get(q);
+    rows.push(...part);
+  }
+  return rows;
+}
+
+async function run(){
+  $("error").textContent="";
+  $("status").textContent="";
+  $("summaryCard").style.display="none";
+  $("tableCard").style.display="none";
+  $("tbl").querySelector("tbody").innerHTML="";
+
+  const url = $("url").value.trim();
+  const anon = $("anon").value.trim();
+  const root = $("root").value.trim();
+
+  if(!url || !anon || !root){
+    $("error").textContent = "لازم تعبي الثلاث حقول: URL + ANON + Root UUID.";
+    return;
+  }
+  $("btn").disabled = true;
+  try{
+    const client = supabaseCreateClient(url, anon);
+
+    // BFS up to 6 generations
+    const gens = []; // gens[g-1] = array of user rows in gen g
+    let frontier = [root];
+    for(let g=1; g<=6; g++){
+      const rows = await fetchUsersByReferrers(client, frontier);
+      gens.push(rows);
+      frontier = rows.map(r=>r.id);
+      $("status").textContent = `Loaded Gen ${g}: ${rows.length}`;
+      if(frontier.length === 0) break;
+    }
+
+    // Summary counts
+    const genCounts = gens.map((rows, idx)=>{
+      const total = rows.length;
+      const eff = rows.filter(isEffectiveRow).length;
+      return { gen: idx+1, total, eff };
+    });
+
+    const all = gens.flat();
+    const totalAll = all.length;
+    const effAll = all.filter(isEffectiveRow).length;
+
+    const summaryLines = [];
+    summaryLines.push(`<div style="display:flex; flex-wrap:wrap; gap:8px; align-items:center">
+        <span class="pill">Total team: <b>${effAll}/${totalAll}</b> (effective/total)</span>
+        <span class="pill">Max generations scanned: <b>${gens.length}</b></span>
+      </div>`);
+    summaryLines.push(`<div style="margin-top:10px" class="muted">تفصيل حسب الجيل:</div>`);
+    summaryLines.push(`<div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:6px">` +
+      genCounts.map(c=>`<span class="pill">Gen${c.gen}: <b>${c.eff}/${c.total}</b></span>`).join("") +
+      `</div>`);
+
+    $("summary").innerHTML = summaryLines.join("");
+    $("summaryCard").style.display="block";
+
+    // Fill table
+    const tbody = $("tbl").querySelector("tbody");
+    gens.forEach((rows, idx)=>{
+      const gen = idx+1;
+      rows.forEach(r=>{
+        const tr = document.createElement("tr");
+        const eff = isEffectiveRow(r);
+        tr.innerHTML = `
+          <td>${gen}</td>
+          <td>${(r.uid||"")}</td>
+          <td><code style="font-size:12px">${r.id}</code></td>
+          <td>${vipLevel(r)}</td>
+          <td>${eff ? "Yes" : "No"}</td>
+          <td>${Number(r.total_deposit||0)}</td>
+          <td>${fmtDate(r.created_at)}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    });
+    $("tableCard").style.display="block";
+
+    // Debug note if gen3 empty
+    if((genCounts[2]?.total || 0) === 0){
+      $("status").textContent = "OK. Gen3=0 يعني ما في users referrer_id تابع لأعضاء Gen2 (بالبيانات الحالية).";
+    } else {
+      $("status").textContent = "OK.";
+    }
+  }catch(e){
+    $("error").textContent = String(e.message || e);
+  }finally{
+    $("btn").disabled = false;
+  }
+}
+
+$("btn").addEventListener("click", run);
+</script>
+</body>
+</html>

@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Choose Language - EXARAI</title>
+
+  <!-- Keep external CSS if your project already has it -->
+  <link rel="stylesheet" href="choose-language-style.css" />
+
+  <!-- Fallback / improved styling (mobile-first) -->
+  <style>
+    :root{
+      --bg0:#0b0f14;
+      --bg1:#0f1620;
+      --card:#0e2430;
+      --card2:#0c202b;
+      --text:#e7eef6;
+      --muted:#9bb0c3;
+      --line:rgba(255,255,255,.10);
+      --shadow:0 10px 35px rgba(0,0,0,.55);
+      --radius:18px;
+      --radius2:14px;
+      --tap:44px;
+      --safe-top: env(safe-area-inset-top, 0px);
+      --safe-bottom: env(safe-area-inset-bottom, 0px);
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0;
+      color:var(--text);
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, "Noto Sans", sans-serif;
+      background:
+        radial-gradient(900px 500px at 50% -10%, rgba(38,94,116,.35), transparent 55%),
+        linear-gradient(180deg, var(--bg0), var(--bg1));
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+    .app{
+      min-height:100%;
+      padding-bottom: calc(16px + var(--safe-bottom));
+    }
+    .app-header{
+      position: sticky;
+      top:0;
+      z-index:10;
+      display:flex;
+      align-items:center;
+      gap:10px;
+      padding: calc(14px + var(--safe-top)) 16px 14px;
+      background: linear-gradient(180deg, rgba(11,15,20,.92), rgba(11,15,20,.60));
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border-bottom: 1px solid rgba(255,255,255,.06);
+    }
+    .back-btn{
+      width:38px;height:38px;
+      display:grid;
+      place-items:center;
+      border-radius:12px;
+      text-decoration:none;
+      color:inherit;
+      background: rgba(255,255,255,.06);
+      border: 1px solid rgba(255,255,255,.08);
+      box-shadow: 0 6px 16px rgba(0,0,0,.25);
+      -webkit-tap-highlight-color: transparent;
+    }
+    .back-btn:active{transform: scale(.98)}
+    .back-arrow{
+      width:10px;height:10px;
+      border-left: 2px solid rgba(231,238,246,.95);
+      border-bottom: 2px solid rgba(231,238,246,.95);
+      transform: rotate(45deg);
+      margin-left:2px;
+    }
+    [dir="rtl"] .back-arrow{
+      transform: rotate(-135deg);
+      margin-left:0;
+      margin-right:2px;
+    }
+    .app-header-title{
+      font-weight:700;
+      letter-spacing:.2px;
+      font-size: 18px;
+      line-height: 1.1;
+      text-align:center;
+      flex:1;
+      padding-right: 38px; /* balance back button */
+      opacity:.98;
+    }
+    [dir="rtl"] .app-header-title{
+      padding-right:0;
+      padding-left: 38px;
+    }
+
+    .app-main{
+      padding: 16px;
+      max-width: 520px;
+      margin: 0 auto;
+    }
+    .settings-title{
+      font-size: 32px;
+      font-weight: 800;
+      margin: 6px 2px 14px;
+      letter-spacing: .2px;
+    }
+
+    .lang-card{
+      border-radius: var(--radius);
+      background: linear-gradient(180deg, rgba(14,36,48,.92), rgba(12,32,43,.88));
+      border: 1px solid rgba(255,255,255,.08);
+      box-shadow: var(--shadow);
+      overflow:hidden;
+    }
+    .lang-btn{
+      width:100%;
+      min-height: var(--tap);
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      padding: 16px 16px;
+      background: transparent;
+      border: 0;
+      color: var(--text);
+      font-size: 16px;
+      font-weight: 600;
+      letter-spacing: .2px;
+      text-align: left;
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+    }
+    [dir="rtl"] .lang-btn{
+      text-align:right;
+    }
+    .lang-btn + .lang-btn{
+      border-top: 1px solid var(--line);
+    }
+    .lang-btn:active{
+      background: rgba(255,255,255,.04);
+    }
+    .lang-left{
+      display:flex;
+      flex-direction:column;
+      gap:4px;
+      min-width:0;
+    }
+    .lang-name{
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+    }
+    .lang-sub{
+      font-size: 12px;
+      color: var(--muted);
+      font-weight: 500;
+      letter-spacing: .15px;
+    }
+    .lang-check{
+      width:22px;height:22px;
+      border-radius: 999px;
+      border: 2px solid rgba(255,255,255,.18);
+      display:grid;
+      place-items:center;
+      flex: 0 0 auto;
+      margin-left: 12px;
+    }
+    [dir="rtl"] .lang-check{margin-left:0;margin-right:12px}
+    .lang-check svg{
+      width:14px;height:14px;
+      display:none;
+    }
+    .lang-btn[aria-selected="true"] .lang-check{
+      border-color: rgba(231,238,246,.72);
+      background: rgba(255,255,255,.10);
+    }
+    .lang-btn[aria-selected="true"] .lang-check svg{
+      display:block;
+    }
+
+    /* Small phones */
+    @media (max-width: 360px){
+      .settings-title{font-size:28px}
+      .lang-btn{padding:14px}
+    }
+  </style>
+</head>
+
+<body>
+  <div class="app">
+    <header class="app-header">
+      <a href="javascript:history.back()" class="back-btn" aria-label="Back">
+        <div class="back-arrow"></div>
+      </a>
+      <div class="app-header-title" data-i18n="choose_language">Choose Language</div>
+    </header>
+
+    <main class="app-main">
+      <div class="settings-title" data-i18n="settings">Settings</div>
+
+      <section class="lang-card" role="listbox" aria-label="Language">
+        <!-- Each button stores a language code in data-lang -->
+        <button class="lang-btn" type="button" data-lang="fr" role="option" aria-selected="false">
+          <span class="lang-left">
+            <span class="lang-name">French</span>
+            <span class="lang-sub">Français</span>
+          </span>
+          <span class="lang-check" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none">
+              <path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path>
+            </svg>
+          </span>
+        </button>
+
+        <button class="lang-btn" type="button" data-lang="de" role="option" aria-selected="false">
+          <span class="lang-left">
+            <span class="lang-name">German</span>
+            <span class="lang-sub">Deutsch</span>
+          </span>
+          <span class="lang-check" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none">
+              <path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path>
+            </svg>
+          </span>
+        </button>
+
+        <button class="lang-btn" type="button" data-lang="it" role="option" aria-selected="false">
+          <span class="lang-left">
+            <span class="lang-name">Italian</span>
+            <span class="lang-sub">Italiano</span>
+          </span>
+          <span class="lang-check" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none">
+              <path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path>
+            </svg>
+          </span>
+        </button>
+
+        <button class="lang-btn" type="button" data-lang="es" role="option" aria-selected="false">
+          <span class="lang-left">
+            <span class="lang-name">Spanish</span>
+            <span class="lang-sub">Español</span>
+          </span>
+          <span class="lang-check" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none">
+              <path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path>
+            </svg>
+          </span>
+        </button>
+
+        <button class="lang-btn" type="button" data-lang="tr" role="option" aria-selected="false">
+          <span class="lang-left">
+            <span class="lang-name">Türkiye</span>
+            <span class="lang-sub">Türkçe</span>
+          </span>
+          <span class="lang-check" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none">
+              <path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path>
+            </svg>
+          </span>
+        </button>
+
+        <button class="lang-btn" type="button" data-lang="ar" role="option" aria-selected="false">
+          <span class="lang-left">
+            <span class="lang-name">عربي</span>
+            <span class="lang-sub">Arabic</span>
+          </span>
+          <span class="lang-check" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none">
+              <path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path>
+            </svg>
+          </span>
+        </button>
+
+        <button class="lang-btn" type="button" data-lang="pt" role="option" aria-selected="false">
+          <span class="lang-left">
+            <span class="lang-name">Português</span>
+            <span class="lang-sub">Português</span>
+          </span>
+          <span class="lang-check" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none">
+              <path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path>
+            </svg>
+          </span>
+        </button>
+
+        <button class="lang-btn" type="button" data-lang="pl" role="option" aria-selected="false">
+          <span class="lang-left">
+            <span class="lang-name">Polski</span>
+            <span class="lang-sub">Polski</span>
+          </span>
+          <span class="lang-check" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none">
+              <path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path>
+            </svg>
+          </span>
+        </button>
+
+        <button class="lang-btn" type="button" data-lang="ru" role="option" aria-selected="false">
+          <span class="lang-left">
+            <span class="lang-name">Русский</span>
+            <span class="lang-sub">Russian</span>
+          </span>
+          <span class="lang-check" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none">
+              <path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path>
+            </svg>
+          </span>
+        </button>
+
+        <button class="lang-btn" type="button" data-lang="zh-Hant" role="option" aria-selected="false">
+          <span class="lang-left">
+            <span class="lang-name">中文繁體</span>
+            <span class="lang-sub">Traditional Chinese</span>
+          </span>
+          <span class="lang-check" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none">
+              <path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path>
+            </svg>
+          </span>
+        </button>
+
+        <button class="lang-btn" type="button" data-lang="en" role="option" aria-selected="false">
+          <span class="lang-left">
+            <span class="lang-name">English</span>
+            <span class="lang-sub">English</span>
+          </span>
+          <span class="lang-check" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none">
+              <path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path>
+            </svg>
+          </span>
+        </button>
+
+        <button class="lang-btn" type="button" data-lang="ja" role="option" aria-selected="false">
+          <span class="lang-left">
+            <span class="lang-name">Japan</span>
+            <span class="lang-sub">日本語</span>
+          </span>
+          <span class="lang-check" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none">
+              <path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path>
+            </svg>
+          </span>
+        </button>
+      </section>
+    </main>
+  </div>
+
+  <!-- Keep your existing navigation script if needed -->
+  <script src="common-nav.js"></script>
+
+  <script>
+    (function(){
+      const STORAGE_KEY = "exarai_lang";
+
+      // Minimal translations for THIS page (extend later for other pages)
+      const I18N = {
+        en: { choose_language: "Choose Language", settings: "Settings" },
+        ar: { choose_language: "اختر اللغة", settings: "الإعدادات" },
+        fr: { choose_language: "Choisir la langue", settings: "Paramètres" },
+        de: { choose_language: "Sprache wählen", settings: "Einstellungen" },
+        it: { choose_language: "Scegli la lingua", settings: "Impostazioni" },
+        es: { choose_language: "Elegir idioma", settings: "Configuración" },
+        tr: { choose_language: "Dil Seçin", settings: "Ayarlar" },
+        pt: { choose_language: "Escolher idioma", settings: "Definições" },
+        pl: { choose_language: "Wybierz język", settings: "Ustawienia" },
+        ru: { choose_language: "Выбор языка", settings: "Настройки" },
+        "zh-Hant": { choose_language: "選擇語言", settings: "設定" },
+        ja: { choose_language: "言語を選択", settings: "設定" }
+      };
+
+      function normalizeLang(code){
+        if(!code) return "en";
+        // support like "ar-LB" -> "ar"
+        const base = String(code).trim();
+        if(I18N[base]) return base;
+        const short = base.split("-")[0];
+        if(I18N[short]) return short;
+        return "en";
+      }
+
+      function applyDir(lang){
+        const rtl = (lang === "ar");
+        document.documentElement.setAttribute("dir", rtl ? "rtl" : "ltr");
+        document.documentElement.setAttribute("lang", lang === "zh-Hant" ? "zh-Hant" : lang);
+      }
+
+      function applyText(lang){
+        const dict = I18N[lang] || I18N.en;
+        document.querySelectorAll("[data-i18n]").forEach(el=>{
+          const key = el.getAttribute("data-i18n");
+          if(dict[key]) el.textContent = dict[key];
+        });
+        // update tab title
+        const titleBase = (dict.choose_language || I18N.en.choose_language);
+        document.title = titleBase + " - EXARAI";
+      }
+
+      function setSelected(lang){
+        document.querySelectorAll(".lang-btn").forEach(btn=>{
+          const active = btn.dataset.lang === lang;
+          btn.setAttribute("aria-selected", active ? "true" : "false");
+        });
+      }
+
+      function setLanguage(lang){
+        const normalized = normalizeLang(lang);
+        localStorage.setItem(STORAGE_KEY, normalized);
+        setSelected(normalized);
+        applyDir(normalized);
+        applyText(normalized);
+
+        // Let other pages listen if they want (optional)
+        try{
+          window.dispatchEvent(new CustomEvent("exarai:languageChanged", { detail: { lang: normalized } }));
+        }catch(e){}
+      }
+
+      // Expose a tiny helper for the rest of the site (optional)
+      window.EXARAI_I18N = window.EXARAI_I18N || {};
+      window.EXARAI_I18N.getLang = function(){
+        return normalizeLang(localStorage.getItem(STORAGE_KEY) || navigator.language || "en");
+      };
+      window.EXARAI_I18N.setLang = function(lang){
+        setLanguage(lang);
+      };
+
+      // Init
+      const initial = normalizeLang(localStorage.getItem(STORAGE_KEY) || navigator.language || "en");
+      setLanguage(initial);
+
+      // Click handlers
+      document.querySelectorAll(".lang-btn").forEach(btn=>{
+        btn.addEventListener("click", ()=> setLanguage(btn.dataset.lang));
+      });
+
+      // Optional: keyboard (up/down/enter) for accessibility
+      const listbox = document.querySelector(".lang-card");
+      if(listbox){
+        listbox.addEventListener("keydown", (e)=>{
+          const items = Array.from(document.querySelectorAll(".lang-btn"));
+          const current = document.activeElement;
+          const idx = items.indexOf(current);
+          if(e.key === "ArrowDown"){
+            e.preventDefault();
+            (items[Math.min(items.length-1, (idx<0?0:idx+1))] || items[0]).focus();
+          }
+          if(e.key === "ArrowUp"){
+            e.preventDefault();
+            (items[Math.max(0, (idx<0?0:idx-1))] || items[0]).focus();
+          }
+          if(e.key === "Enter" || e.key === " "){
+            if(current && current.classList && current.classList.contains("lang-btn")){
+              e.preventDefault();
+              current.click();
+            }
+          }
+        });
+      }
+    })();
+  </script>
+</body>
+</html>
