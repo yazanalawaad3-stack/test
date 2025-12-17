@@ -825,6 +825,8 @@
 <div class="tab-label">Mine</div>
 </div>
 </div>
+
+<script src="wallet.js"></script>
 <script>
   
   (function() {
@@ -983,6 +985,123 @@
     var membershipRank = levelOrderMap[membershipLevel] || 0;
 
     // Update unlocks based on membership (V1–V3 only)
+    
+
+// --- Supabase credit (AI Power -> wallet_balances) ---
+var SUPABASE_URL = "https://oyowsjjmaesspqiknvhp.supabase.co";
+var SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im95b3dzamptYWVzc3BxaWtudmhwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU4MTE4NzcsImV4cCI6MjA4MTM4Nzg3N30.aBo32xNG_dh1QD7NBI4N6jhYFLY42Xyxer2DNXxJi-w";
+
+function getCachedSupabaseUserId() {
+  try {
+    var v = localStorage.getItem("sb_user_id_v1");
+    return v && typeof v === "string" && v.length > 10 ? v : null;
+  } catch(e) {
+    return null;
+  }
+}
+
+async function resolveSupabaseUserId() {
+  var id = getCachedSupabaseUserId();
+  if (id) return id;
+  if (window.ExaAuth && typeof window.ExaAuth.ensureSupabaseUserId === "function") {
+    try {
+      id = await window.ExaAuth.ensureSupabaseUserId();
+      if (id) return id;
+    } catch(e) {}
+  }
+  return null;
+}
+
+async function creditWalletBalances(amount) {
+  try {
+    var userId = await resolveSupabaseUserId();
+    if (!userId) return false;
+
+    // Read current balance
+    var getUrl = SUPABASE_URL + "/rest/v1/wallet_balances?select=usdt_balance&user_id=eq." + encodeURIComponent(userId) + "&limit=1";
+    var getRes = await fetch(getUrl, {
+      method: "GET",
+      headers: {
+        "apikey": SUPABASE_KEY,
+        "Authorization": "Bearer " + SUPABASE_KEY,
+        "Accept": "application/json"
+      }
+    });
+
+    var current = 0;
+    if (getRes.ok) {
+      var rows = await getRes.json();
+      if (rows && rows.length && rows[0] && rows[0].usdt_balance != null) {
+        current = Number(rows[0].usdt_balance) || 0;
+      }
+    }
+
+    var next = current + (Number(amount) || 0);
+
+    // If row exists -> PATCH; else -> POST
+    if (getRes.ok) {
+      var existed = false;
+      try {
+        var rows2 = await getRes.clone().json();
+        existed = !!(rows2 && rows2.length);
+      } catch(e) {
+        // clone() might fail in some browsers; fallback by checking current!=0 isn't safe
+      }
+      // better: re-fetch existence quickly
+      if (!existed) {
+        try {
+          var rr = await fetch(getUrl, {
+            method: "GET",
+            headers: {
+              "apikey": SUPABASE_KEY,
+              "Authorization": "Bearer " + SUPABASE_KEY,
+              "Accept": "application/json"
+            }
+          });
+          if (rr.ok) {
+            var rj = await rr.json();
+            existed = !!(rj && rj.length);
+          }
+        } catch(e) {}
+      }
+
+      if (existed) {
+        var patchUrl = SUPABASE_URL + "/rest/v1/wallet_balances?user_id=eq." + encodeURIComponent(userId);
+        var patchRes = await fetch(patchUrl, {
+          method: "PATCH",
+          headers: {
+            "apikey": SUPABASE_KEY,
+            "Authorization": "Bearer " + SUPABASE_KEY,
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+            "Prefer": "return=representation"
+          },
+          body: JSON.stringify({ usdt_balance: next, updated_at: new Date().toISOString() })
+        });
+        return patchRes.ok;
+      } else {
+        var postUrl = SUPABASE_URL + "/rest/v1/wallet_balances";
+        var postRes = await fetch(postUrl, {
+          method: "POST",
+          headers: {
+            "apikey": SUPABASE_KEY,
+            "Authorization": "Bearer " + SUPABASE_KEY,
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+            "Prefer": "return=representation"
+          },
+          body: JSON.stringify({ user_id: userId, usdt_balance: next })
+        });
+        return postRes.ok;
+      }
+    }
+    return false;
+  } catch(e) {
+    return false;
+  }
+}
+// --- End Supabase credit ---
+
     gpuConfigs.forEach(function(cfg, i) {
       var lvlText = cfg.levelText;
       var reqRank = levelOrderMap[lvlText] || 0;
@@ -1143,57 +1262,13 @@
           var profit = cfg.baseAmount * (rate / 100) / Math.max(cfg.maxRuns, 1);
           st.todayProfit += profit;
 
-          // --- Credit profit to Supabase wallet_balances (REAL source of balance) ---
-          (async function creditToSupabase(){
-            try {
-              var SUPABASE_URL = "https://oyowsjjmaesspqiknvhp.supabase.co";
-              var SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im95b3dzamptYWVzc3BxaWtudmhwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU4MTE4NzcsImV4cCI6MjA4MTM4Nzg3N30.aBo32xNG_dh1QD7NBI4N6jhYFLY42Xyxer2DNXxJi-w";
-              var userId = "";
-              try { userId = (window.ExaAuth && window.ExaAuth.getSupabaseUserId) ? String(window.ExaAuth.getSupabaseUserId()||"") : ""; } catch(e){}
-              if (!userId) { try { userId = String(localStorage.getItem("sb_user_id_v1")||""); } catch(e){} }
-              if (!userId) return; // user not logged in
-
-              // read current
-              var getUrl = SUPABASE_URL + "/rest/v1/wallet_balances?select=usdt_balance&user_id=eq." + encodeURIComponent(userId) + "&limit=1";
-              var res1 = await fetch(getUrl, {
-                method: "GET",
-                headers: { "apikey": SUPABASE_KEY, "Authorization": "Bearer " + SUPABASE_KEY, "Accept": "application/json" }
-              });
-              var current = 0;
-              if (res1.ok) {
-                var rows = await res1.json();
-                if (rows && rows[0] && rows[0].usdt_balance != null) current = Number(rows[0].usdt_balance) || 0;
-              }
-
-              var nextBal = current + Number(profit || 0);
-              if (!isFinite(nextBal)) nextBal = current;
-
-              // upsert
-              var upsertUrl = SUPABASE_URL + "/rest/v1/wallet_balances";
-              await fetch(upsertUrl, {
-                method: "POST",
-                headers: {
-                  "apikey": SUPABASE_KEY,
-                  "Authorization": "Bearer " + SUPABASE_KEY,
-                  "Content-Type": "application/json",
-                  "Accept": "application/json",
-                  "Prefer": "resolution=merge-duplicates"
-                },
-                body: JSON.stringify({ user_id: userId, usdt_balance: nextBal, usdt_reserved: 0, updated_at: new Date().toISOString() })
-              });
-
-              // keep legacy demoBalance in sync and force-refresh UI where possible
-              try { localStorage.setItem("demoBalance", String(nextBal)); } catch(e){}
-              try { window.dispatchEvent(new Event("sb:balance_refresh")); } catch(e){}
-              try { if (window.SBBalance && typeof window.SBBalance.refresh === "function") window.SBBalance.refresh(); } catch(e){}
-            } catch (e) {}
-          })();
-
-
           if (window.DemoWallet && typeof window.DemoWallet.addIncome === 'function') {
             // Each successful run adds 1 USDT demo income to the user's wallet
-            window.DemoWallet.addIncome(profit);
-          }
+            window.DemoWallet.addIncome(1);
+            }
+
+            // Persist demo income to Supabase so it appears in my-assets
+            creditWalletBalances(1);
 
           state.levels[i] = st;
           saveState();
@@ -1211,8 +1286,6 @@
 </script>
 
 <script src="auth.js"></script>
-
-<script src="sb-balance.js"></script>
 <script src="common-nav.js"></script>
 </body>
 </html>

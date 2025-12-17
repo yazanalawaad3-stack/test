@@ -180,14 +180,6 @@
     setInterval(fetchBalance, 6000);
   }
 
-  // Expose a small API so other pages (e.g., AI-Power) can force-refresh instantly
-  try {
-    window.SBBalance = window.SBBalance || {};
-    window.SBBalance.refresh = fetchBalance;
-    window.addEventListener("sb:balance_refresh", function(){ fetchBalance(); });
-  } catch (e) {}
-
-
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", init);
   } else {
