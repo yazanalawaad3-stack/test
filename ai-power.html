@@ -1015,89 +1015,68 @@ async function resolveSupabaseUserId() {
 async function creditWalletBalances(amount) {
   try {
     var userId = await resolveSupabaseUserId();
-    if (!userId) return { ok: false };
+    if (!userId) return { ok: false, error: "no_user" };
 
-    // Read current balance
-    var getUrl = SUPABASE_URL + "/rest/v1/wallet_balances?select=usdt_balance&user_id=eq." + encodeURIComponent(userId) + "&limit=1";
-    var getRes = await fetch(getUrl, {
-      method: "GET",
-      headers: {
-        "apikey": SUPABASE_KEY,
-        "Authorization": "Bearer " + SUPABASE_KEY,
-        "Accept": "application/json"
-      }
-    });
+    var delta = Number(amount) || 0;
+    if (!isFinite(delta) || delta === 0) return { ok: true, previous: null, next: null };
 
+    var getUrl =
+      SUPABASE_URL +
+      "/rest/v1/wallet_balances?select=usdt_balance&user_id=eq." +
+      encodeURIComponent(userId) +
+      "&limit=1";
+
+    var baseHeaders = {
+      "apikey": SUPABASE_KEY,
+      "Authorization": "Bearer " + SUPABASE_KEY,
+      "Accept": "application/json"
+    };
+
+    var getRes = await fetch(getUrl, { method: "GET", headers: baseHeaders });
+
+    var rows = [];
+    if (getRes.ok) {
+      try { rows = await getRes.json(); } catch(e) { rows = []; }
+    }
+
+    var existed = Array.isArray(rows) && rows.length > 0;
     var current = 0;
-    if (getRes.ok) {
-      var rows = await getRes.json();
-      if (rows && rows.length && rows[0] && rows[0].usdt_balance != null) {
-        current = Number(rows[0].usdt_balance) || 0;
-      }
+    if (existed && rows[0] && rows[0].usdt_balance != null) {
+      current = Number(rows[0].usdt_balance) || 0;
     }
 
-    var next = current + (Number(amount) || 0);
+    var next = current + delta;
 
-    // If row exists -> PATCH; else -> POST
-    if (getRes.ok) {
-      var existed = false;
-      try {
-        var rows2 = await getRes.clone().json();
-        existed = !!(rows2 && rows2.length);
-      } catch(e) {
-        // clone() might fail in some browsers; fallback by checking current!=0 isn't safe
-      }
-      // better: re-fetch existence quickly
-      if (!existed) {
-        try {
-          var rr = await fetch(getUrl, {
-            method: "GET",
-            headers: {
-              "apikey": SUPABASE_KEY,
-              "Authorization": "Bearer " + SUPABASE_KEY,
-              "Accept": "application/json"
-            }
-          });
-          if (rr.ok) {
-            var rj = await rr.json();
-            existed = !!(rj && rj.length);
-          }
-        } catch(e) {}
-      }
-
-      if (existed) {
-        var patchUrl = SUPABASE_URL + "/rest/v1/wallet_balances?user_id=eq." + encodeURIComponent(userId);
-        var patchRes = await fetch(patchUrl, {
-          method: "PATCH",
-          headers: {
-            "apikey": SUPABASE_KEY,
-            "Authorization": "Bearer " + SUPABASE_KEY,
-            "Accept": "application/json",
-            "Content-Type": "application/json",
-            "Prefer": "return=representation"
-          },
-          body: JSON.stringify({ usdt_balance: next, updated_at: new Date().toISOString() })
-        });
-        return { ok: patchRes.ok, previous: current, next: next };
-      } else {
-        var postUrl = SUPABASE_URL + "/rest/v1/wallet_balances";
-        var postRes = await fetch(postUrl, {
-          method: "POST",
-          headers: {
-            "apikey": SUPABASE_KEY,
-            "Authorization": "Bearer " + SUPABASE_KEY,
-            "Accept": "application/json",
-            "Content-Type": "application/json",
-            "Prefer": "return=representation"
-          },
-          body: JSON.stringify({ user_id: userId, usdt_balance: next })
-        });
-        return { ok: postRes.ok, previous: current, next: next };
-      }
+    if (existed) {
+      var patchUrl = SUPABASE_URL + "/rest/v1/wallet_balances?user_id=eq." + encodeURIComponent(userId);
+      var patchHeaders = Object.assign({}, baseHeaders, {
+        "Content-Type": "application/json",
+        "Prefer": "return=representation"
+      });
+      var patchRes = await fetch(patchUrl, {
+        method: "PATCH",
+        headers: patchHeaders,
+        body: JSON.stringify({ usdt_balance: next, updated_at: new Date().toISOString() })
+      });
+      return { ok: patchRes.ok, previous: current, next: next };
+    } else {
+      var postUrl = SUPABASE_URL + "/rest/v1/wallet_balances";
+      var postHeaders = Object.assign({}, baseHeaders, {
+        "Content-Type": "application/json",
+        "Prefer": "return=representation"
+      });
+      var postRes = await fetch(postUrl, {
+        method: "POST",
+        headers: postHeaders,
+        body: JSON.stringify({ user_id: userId, usdt_balance: next })
+      });
+      return { ok: postRes.ok, previous: current, next: next };
     }
-    return false;
-  } catch(e) { return { ok: false }; }
+  } catch(e) {
+    return { ok: false };
+  }
 }
+
 
   // Record an AI Power run in ipower_actions table
   async function logIpowerAction(userId, earningAmount, balanceSnapshot) {
