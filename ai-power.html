@@ -1015,7 +1015,7 @@ async function resolveSupabaseUserId() {
 async function creditWalletBalances(amount) {
   try {
     var userId = await resolveSupabaseUserId();
-    if (!userId) return false;
+    if (!userId) return { ok: false };
 
     // Read current balance
     var getUrl = SUPABASE_URL + "/rest/v1/wallet_balances?select=usdt_balance&user_id=eq." + encodeURIComponent(userId) + "&limit=1";
@@ -1078,7 +1078,7 @@ async function creditWalletBalances(amount) {
           },
           body: JSON.stringify({ usdt_balance: next, updated_at: new Date().toISOString() })
         });
-        return patchRes.ok;
+        return { ok: patchRes.ok, previous: current, next: next };
       } else {
         var postUrl = SUPABASE_URL + "/rest/v1/wallet_balances";
         var postRes = await fetch(postUrl, {
@@ -1092,14 +1092,88 @@ async function creditWalletBalances(amount) {
           },
           body: JSON.stringify({ user_id: userId, usdt_balance: next })
         });
-        return postRes.ok;
+        return { ok: postRes.ok, previous: current, next: next };
       }
     }
     return false;
-  } catch(e) {
-    return false;
-  }
+  } catch(e) { return { ok: false }; }
 }
+
+  // Record an AI Power run in ipower_actions table
+  async function logIpowerAction(userId, earningAmount, balanceSnapshot) {
+    try {
+      if (!userId) return { ok: false };
+      var url = SUPABASE_URL + "/rest/v1/ipower_actions";
+      var payload = {
+        user_id: userId,
+        action_type: "tap",
+        earning_amount: earningAmount,
+        balance_snapshot: (typeof balanceSnapshot === "number" ? balanceSnapshot : 0)
+      };
+      var res = await fetch(url, {
+        method: "POST",
+        headers: {
+          "apikey": SUPABASE_KEY,
+          "Authorization": "Bearer " + SUPABASE_KEY,
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Prefer": "return=minimal"
+        },
+        body: JSON.stringify(payload)
+      });
+      return res.ok;
+    } catch(e) { return { ok: false }; }
+  }
+
+  // Enforce one run per 24 hours using ipower_actions.created_at
+  async function checkIpowerCooldown(userId) {
+    try {
+      if (!userId) return { ok: false, remainingMs: 24 * 60 * 60 * 1000 };
+      var url =
+        SUPABASE_URL +
+        "/rest/v1/ipower_actions?select=created_at&user_id=eq." +
+        encodeURIComponent(userId) +
+        "&order=created_at.desc&limit=1";
+      var res = await fetch(url, {
+        method: "GET",
+        headers: {
+          "apikey": SUPABASE_KEY,
+          "Authorization": "Bearer " + SUPABASE_KEY,
+          "Accept": "application/json"
+        }
+      });
+      if (!res.ok) return { ok: true }; // fail-open
+      var rows = await res.json();
+      if (!rows || !rows.length || !rows[0].created_at) return { ok: true };
+
+      var last = new Date(rows[0].created_at);
+      var now = new Date();
+      var diffMs = now.getTime() - last.getTime();
+      var limitMs = 24 * 60 * 60 * 1000;
+
+      if (diffMs >= limitMs) return { ok: true };
+
+      return { ok: false, remainingMs: Math.max(0, limitMs - diffMs), lastAt: rows[0].created_at };
+    } catch (e) {
+      return { ok: true }; // fail-open
+    }
+  }
+
+  function formatRemaining(ms) {
+    try {
+      ms = Math.max(0, ms || 0);
+      var totalSec = Math.ceil(ms / 1000);
+      var h = Math.floor(totalSec / 3600);
+      var m = Math.floor((totalSec % 3600) / 60);
+      var s = totalSec % 60;
+      if (h > 0) return h + "h " + m + "m";
+      if (m > 0) return m + "m " + s + "s";
+      return s + "s";
+    } catch (e) {
+      return "";
+    }
+  }
+
 // --- End Supabase credit ---
 
     gpuConfigs.forEach(function(cfg, i) {
@@ -1197,7 +1271,7 @@ async function creditWalletBalances(amount) {
       }
       setButtonText();
 
-      btn.addEventListener("click", function() {
+      btn.addEventListener("click", async function() {
         var st = state.levels[i];
 
         // Membership-locked levels cannot be manually unlocked
@@ -1225,7 +1299,20 @@ async function creditWalletBalances(amount) {
           return;
         }
 
-        var duration = 8;
+        
+        // --- AI Power rule: one run per 24 hours (server-based) ---
+        var userId = await resolveSupabaseUserId();
+        if (!userId) {
+          alert("Please sign in first.");
+          return;
+        }
+        var cd = await checkIpowerCooldown(userId);
+        if (cd && cd.ok === false) {
+          alert("You can run AI Power once every 24 hours. Try again in " + formatRemaining(cd.remainingMs) + ".");
+          return;
+        }
+
+var duration = 8;
         btn.disabled = true;
         var originalText = "Run";
 
@@ -1262,15 +1349,22 @@ async function creditWalletBalances(amount) {
           var profit = cfg.baseAmount * (rate / 100) / Math.max(cfg.maxRuns, 1);
           st.todayProfit += profit;
 
-          if (window.DemoWallet && typeof window.DemoWallet.addIncome === 'function') {
-            // Each successful run adds 1 USDT demo income to the user's wallet
-            window.DemoWallet.addIncome(1);
-            }
+          
+          var profitAmount = profit;
 
-            // Persist demo income to Supabase so it appears in my-assets
-            creditWalletBalances(1);
+          if (window.DemoWallet && typeof window.DemoWallet.addIncome === "function") {
+            window.DemoWallet.addIncome(profitAmount);
+          }
 
-          state.levels[i] = st;
+          // Persist profit to Supabase wallet so it appears in my-assets
+          var creditRes = await creditWalletBalances(profitAmount);
+
+          // Log action into ipower_actions (best effort)
+          try {
+            var snap = (creditRes && typeof creditRes.next === "number") ? creditRes.next : 0;
+            await logIpowerAction(userId, profitAmount, snap);
+          } catch(e) {}
+state.levels[i] = st;
           saveState();
           updateSummary();
 
