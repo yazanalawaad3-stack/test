@@ -12,8 +12,8 @@
 ;(function (window, document) {
   "use strict";
 
-  var SUPABASE_URL = "https://oyowsjjmaesspqiknvhp.supabase.co";
-  var SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im95b3dzamptYWVzc3BxaWtudmhwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU4MTE4NzcsImV4cCI6MjA4MTM4Nzg3N30.aBo32xNG_dh1QD7NBI4N6jhYFLY42Xyxer2DNXxJi-w";
+  var SUPABASE_URL = (window.SB_CONFIG && window.SB_CONFIG.url) ? window.SB_CONFIG.url : "https://oyowsjjmaesspqiknvhp.supabase.co";
+  var SUPABASE_KEY = (window.SB_CONFIG && window.SB_CONFIG.anonKey) ? window.SB_CONFIG.anonKey : "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im95b3dzamptYWVzc3BxaWtudmhwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU4MTE4NzcsImV4cCI6MjA4MTM4Nzg3N30.aBo32xNG_dh1QD7NBI4N6jhYFLY42Xyxer2DNXxJi-w";
 
   var SB_USER_ID_KEY = "sb_user_id_v1";      // uuid from public.users (if used)
   var DEMO_USER_KEY  = "demoCurrentUser";    // local demo user (has .id)
