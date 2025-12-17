@@ -825,12 +825,68 @@
 <div class="tab-label">Mine</div>
 </div>
 </div>
-
-<script src="wallet.js"></script>
 <script>
   
   (function() {
-    // --- Shared user info from demo storage ---
+    // --- Supabase credit helper (real balance) ---
+var SB_URL = "https://oyowsjjmaesspqiknvhp.supabase.co";
+var SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im95b3dzamptYWVzc3BxaWtudmhwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU4MTE4NzcsImV4cCI6MjA4MTM4Nzg3N30.aBo32xNG_dh1QD7NBI4N6jhYFLY42Xyxer2DNXxJi-w";
+
+function sbHeaders(prefer) {
+  var h = { apikey: SB_KEY, Authorization: "Bearer " + SB_KEY, "Content-Type": "application/json", Accept: "application/json" };
+  if (prefer) h.Prefer = prefer;
+  return h;
+}
+
+async function sbGetBalance(userId) {
+  var url = SB_URL + "/rest/v1/wallet_balances?select=usdt_balance&user_id=eq." + encodeURIComponent(userId) + "&limit=1";
+  var res = await fetch(url, { headers: sbHeaders() });
+  if (!res.ok) return null;
+  var rows = await res.json();
+  if (!rows || !rows.length) return null;
+  return Number(rows[0].usdt_balance || 0);
+}
+
+async function sbUpsertBalance(userId, newBalance) {
+  var patchUrl = SB_URL + "/rest/v1/wallet_balances?user_id=eq." + encodeURIComponent(userId);
+  var patchRes = await fetch(patchUrl, { method: "PATCH", headers: sbHeaders("return=minimal"), body: JSON.stringify({ usdt_balance: newBalance, updated_at: new Date().toISOString() }) });
+  if (patchRes.ok) return true;
+
+  var postUrl = SB_URL + "/rest/v1/wallet_balances";
+  var postRes = await fetch(postUrl, { method: "POST", headers: sbHeaders("return=minimal"), body: JSON.stringify({ user_id: userId, usdt_balance: newBalance }) });
+  return postRes.ok;
+}
+
+async function sbInsertAction(userId, balanceSnapshot, earningAmount) {
+  try {
+    await fetch(SB_URL + "/rest/v1/ipower_actions", {
+      method: "POST",
+      headers: sbHeaders("return=minimal"),
+      body: JSON.stringify({ user_id: userId, action_type: "tap", balance_snapshot: balanceSnapshot, earning_amount: earningAmount })
+    });
+  } catch (e) {}
+}
+
+async function creditIpowerEarning(amount) {
+  if (!amount || !isFinite(amount) || amount <= 0) amount = 0;
+
+  var userId = (window.ExaAuth && typeof window.ExaAuth.getSupabaseUserId === "function") ? window.ExaAuth.getSupabaseUserId() : "";
+  if (!userId) throw new Error("Not logged in");
+
+  var before = await sbGetBalance(userId);
+  if (before == null) before = 0;
+
+  sbInsertAction(userId, before, amount);
+
+  var after = before + amount;
+  var ok = await sbUpsertBalance(userId, after);
+  if (!ok) throw new Error("Failed to update balance");
+
+  try { window.dispatchEvent(new Event("wallet:refresh")); } catch (e) {}
+  return { before: before, after: after };
+}
+
+// --- Shared user info from demo storage ---
     function getDemoUserInfo() {
       var balance = parseFloat(localStorage.getItem("demoBalance") || "0");
       var effectiveUsers = parseInt(localStorage.getItem("demoEffectiveUsers") || "0", 10);
@@ -1144,12 +1200,12 @@
           var rate = cfg.rateMin + Math.random() * (cfg.rateMax - cfg.rateMin);
           var profit = cfg.baseAmount * (rate / 100) / Math.max(cfg.maxRuns, 1);
           st.todayProfit += profit;
-
-          if (window.DemoWallet && typeof window.DemoWallet.addIncome === 'function') {
-            // Each successful run adds 1 USDT demo income to the user's wallet
-            window.DemoWallet.addIncome(1);
+          // Credit profit to Supabase wallet_balances so it shows in Assets/Home
+          try {
+            await creditIpowerEarning(profit);
+          } catch (e) {
+            alert("Could not credit balance. Please login again.");
           }
-
           state.levels[i] = st;
           saveState();
           updateSummary();
